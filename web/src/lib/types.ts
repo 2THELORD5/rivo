@@ -164,6 +164,46 @@ export interface ContractRisk {
   explanation: string;
 }
 
+export type JobStatus = "open" | "closed" | "filled";
+
+export type JobApplicationStatus =
+  | "pending"
+  | "accepted"
+  | "rejected"
+  | "withdrawn";
+
+/** Markanın açık iş ilanı */
+export interface JobPosting {
+  id: string;
+  brandId: string;
+  title: string;
+  niche: string;
+  description: string;
+  contentType: string;
+  budgetMin: number;
+  budgetMax: number;
+  dueDate: string;
+  usageRightsDays: number;
+  revisions: number;
+  platforms: string[];
+  status: JobStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Üreticinin ilana teklifi */
+export interface JobApplication {
+  id: string;
+  jobId: string;
+  influencerId: string;
+  proposedBudget: number;
+  pitch: string;
+  status: JobApplicationStatus;
+  createdAt: string;
+  updatedAt: string;
+  offerId?: string | null;
+}
+
 export interface DbShape {
   users: User[];
   influencers: InfluencerProfile[];
@@ -173,6 +213,8 @@ export interface DbShape {
   collaborations: Collaboration[];
   messages: ChatMessage[];
   auditLogs: AuditLog[];
+  jobs: JobPosting[];
+  jobApplications: JobApplication[];
 }
 
 /** Hardcoded admin console credentials (demo) */

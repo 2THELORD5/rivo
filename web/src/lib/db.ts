@@ -9,6 +9,8 @@ import type {
   CollaborationStatus,
   ContractRisk,
   DbShape,
+  JobApplication,
+  JobPosting,
   Offer,
   OfferStatus,
   Role,
@@ -32,6 +34,8 @@ let resolvedPath: string | null = null;
 function migrate(db: DbShape): DbShape {
   if (!Array.isArray(db.messages)) db.messages = [];
   if (!Array.isArray(db.auditLogs)) db.auditLogs = [];
+  if (!Array.isArray(db.jobs)) db.jobs = [];
+  if (!Array.isArray(db.jobApplications)) db.jobApplications = [];
   return db;
 }
 
@@ -1287,4 +1291,336 @@ export function adminDeleteMessage(messageId: string) {
     entity: "message",
     entityId: messageId,
   });
+}
+
+function enrichJob(db: DbShape, job: JobPosting) {
+  const brand = db.brands.find((b) => b.id === job.brandId);
+  const brandUser = db.users.find((u) => u.id === brand?.userId);
+  const apps = db.jobApplications.filter((a) => a.jobId === job.id);
+  return {
+    ...job,
+    brandName: brand?.company ?? "",
+    brandIndustry: brand?.industry ?? "",
+    applicationCount: apps.length,
+    pendingCount: apps.filter((a) => a.status === "pending").length,
+  };
+}
+
+function enrichJobApp(db: DbShape, app: JobApplication) {
+  const inf = db.influencers.find((i) => i.id === app.influencerId);
+  const infUser = db.users.find((u) => u.id === inf?.userId);
+  const job = db.jobs.find((j) => j.id === app.jobId);
+  return {
+    ...app,
+    influencerName: infUser?.name ?? "",
+    influencerHandle: inf?.handle ?? "",
+    niche: inf?.niche ?? "",
+    reliabilityScore: inf?.reliabilityScore ?? 0,
+    monthlyReach: inf?.monthlyReach ?? 0,
+    jobTitle: job?.title ?? "",
+  };
+}
+
+export function listJobsForUser(userId: string, opts?: { status?: string }) {
+  const db = readDb();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return [];
+
+  let jobs = [...db.jobs];
+  if (user.role === "brand") {
+    const brand = db.brands.find((b) => b.userId === userId);
+    jobs = jobs.filter((j) => j.brandId === brand?.id);
+  } else {
+    const inf = db.influencers.find((i) => i.userId === userId);
+    const appliedIds = new Set(
+      db.jobApplications
+        .filter((a) => a.influencerId === inf?.id)
+        .map((a) => a.jobId),
+    );
+    jobs = jobs.filter((j) => j.status === "open" || appliedIds.has(j.id));
+  }
+  if (opts?.status && opts.status !== "all") {
+    jobs = jobs.filter((j) => j.status === opts.status);
+  }
+  return jobs
+    .map((j) => enrichJob(db, j))
+    .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
+}
+
+export function getJobForUser(userId: string, jobId: string) {
+  const db = readDb();
+  const user = db.users.find((u) => u.id === userId);
+  const job = db.jobs.find((j) => j.id === jobId);
+  if (!user || !job) return null;
+  if (user.role === "brand") {
+    const brand = db.brands.find((b) => b.userId === userId);
+    if (job.brandId !== brand?.id) return null;
+  } else if (job.status !== "open") {
+    // still allow viewing if applied
+    const inf = db.influencers.find((i) => i.userId === userId);
+    const applied = db.jobApplications.some(
+      (a) => a.jobId === jobId && a.influencerId === inf?.id,
+    );
+    if (!applied) return null;
+  }
+  return enrichJob(db, job);
+}
+
+export function createJob(
+  brandUserId: string,
+  input: {
+    title: string;
+    niche: string;
+    description: string;
+    contentType: string;
+    budgetMin: number;
+    budgetMax: number;
+    dueDate: string;
+    usageRightsDays: number;
+    revisions: number;
+    platforms: string[];
+  },
+) {
+  const db = readDb();
+  const user = db.users.find((u) => u.id === brandUserId);
+  const brand = db.brands.find((b) => b.userId === brandUserId);
+  if (!user || user.role !== "brand" || !brand)
+    throw new Error("Sadece markalar ilan açabilir");
+  if (!user.subscriptionTier)
+    throw new Error("Abonelik olmadan ilan yayınlanamaz");
+  if (!input.title.trim() || !input.description.trim())
+    throw new Error("Başlık ve açıklama gerekli");
+  if (input.budgetMin > input.budgetMax)
+    throw new Error("Min bütçe max bütçeden büyük olamaz");
+
+  const job: JobPosting = {
+    id: crypto.randomUUID(),
+    brandId: brand.id,
+    title: input.title.trim(),
+    niche: input.niche || "Genel",
+    description: input.description.trim(),
+    contentType: input.contentType || "İçerik",
+    budgetMin: input.budgetMin,
+    budgetMax: input.budgetMax,
+    dueDate: input.dueDate,
+    usageRightsDays: input.usageRightsDays || 90,
+    revisions: input.revisions ?? 2,
+    platforms: input.platforms?.length ? input.platforms : ["Instagram"],
+    status: "open",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  db.jobs.unshift(job);
+  writeDb(db);
+  addAudit({
+    actor: user.email,
+    actorType: "user",
+    action: "job.create",
+    entity: "job",
+    entityId: job.id,
+    detail: job.title,
+  });
+  return enrichJob(readDb(), job);
+}
+
+export function updateJobStatus(
+  brandUserId: string,
+  jobId: string,
+  status: "open" | "closed" | "filled",
+) {
+  const db = readDb();
+  const brand = db.brands.find((b) => b.userId === brandUserId);
+  const job = db.jobs.find((j) => j.id === jobId);
+  if (!brand || !job || job.brandId !== brand.id) throw new Error("Yetkisiz");
+  job.status = status;
+  job.updatedAt = new Date().toISOString();
+  writeDb(db);
+  return enrichJob(readDb(), job);
+}
+
+export function applyToJob(
+  influencerUserId: string,
+  jobId: string,
+  input: { proposedBudget: number; pitch: string },
+) {
+  const db = readDb();
+  const user = db.users.find((u) => u.id === influencerUserId);
+  const inf = db.influencers.find((i) => i.userId === influencerUserId);
+  const job = db.jobs.find((j) => j.id === jobId);
+  if (!user || user.role !== "influencer" || !inf)
+    throw new Error("Sadece üreticiler teklif verebilir");
+  if (!job || job.status !== "open") throw new Error("İlan açık değil");
+  if (!input.pitch.trim()) throw new Error("Kısa bir pitch yaz");
+  if (input.proposedBudget < job.budgetMin)
+    throw new Error(`Minimum bütçe ${job.budgetMin} TL`);
+  if (input.proposedBudget > job.budgetMax * 1.25)
+    throw new Error("Teklif üst bandın çok üzerinde");
+
+  const existing = db.jobApplications.find(
+    (a) =>
+      a.jobId === jobId &&
+      a.influencerId === inf.id &&
+      a.status === "pending",
+  );
+  if (existing) throw new Error("Bu ilana zaten bekleyen teklifin var");
+
+  const app: JobApplication = {
+    id: crypto.randomUUID(),
+    jobId,
+    influencerId: inf.id,
+    proposedBudget: input.proposedBudget,
+    pitch: input.pitch.trim(),
+    status: "pending",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  db.jobApplications.unshift(app);
+  db.messages.push({
+    id: crypto.randomUUID(),
+    threadId: `job:${jobId}`,
+    fromUserId: influencerUserId,
+    body: `İlana teklif: ${input.proposedBudget.toLocaleString("tr-TR")} TL — ${input.pitch.trim().slice(0, 120)}`,
+    createdAt: new Date().toISOString(),
+    system: true,
+  });
+  writeDb(db);
+  addAudit({
+    actor: user.email,
+    actorType: "user",
+    action: "job.apply",
+    entity: "jobApplication",
+    entityId: app.id,
+    detail: job.title,
+  });
+  return enrichJobApp(readDb(), app);
+}
+
+export function listApplicationsForJob(userId: string, jobId: string) {
+  const db = readDb();
+  const user = db.users.find((u) => u.id === userId);
+  const job = db.jobs.find((j) => j.id === jobId);
+  if (!user || !job) return [];
+  if (user.role === "brand") {
+    const brand = db.brands.find((b) => b.userId === userId);
+    if (job.brandId !== brand?.id) throw new Error("Yetkisiz");
+    return db.jobApplications
+      .filter((a) => a.jobId === jobId)
+      .map((a) => enrichJobApp(db, a));
+  }
+  const inf = db.influencers.find((i) => i.userId === userId);
+  return db.jobApplications
+    .filter((a) => a.jobId === jobId && a.influencerId === inf?.id)
+    .map((a) => enrichJobApp(db, a));
+}
+
+export function respondJobApplication(
+  brandUserId: string,
+  applicationId: string,
+  action: "accept" | "reject",
+) {
+  const db = readDb();
+  const brandUser = db.users.find((u) => u.id === brandUserId);
+  const brand = db.brands.find((b) => b.userId === brandUserId);
+  const app = db.jobApplications.find((a) => a.id === applicationId);
+  if (!brandUser || !brand || !app) throw new Error("Teklif bulunamadı");
+  const job = db.jobs.find((j) => j.id === app.jobId);
+  if (!job || job.brandId !== brand.id) throw new Error("Yetkisiz");
+  if (app.status !== "pending") throw new Error("Bu teklif güncellenemez");
+
+  if (action === "reject") {
+    app.status = "rejected";
+    app.updatedAt = new Date().toISOString();
+    writeDb(db);
+    return { application: enrichJobApp(readDb(), app), offer: null, collaboration: null };
+  }
+
+  if (!brandUser.subscriptionTier)
+    throw new Error("Abonelik olmadan kabul edilemez");
+  if ((brandUser.tokens ?? 0) < 150)
+    throw new Error("Yetersiz teklif jetonu (150 gerekir)");
+
+  brandUser.tokens = (brandUser.tokens ?? 0) - 150;
+  app.status = "accepted";
+  app.updatedAt = new Date().toISOString();
+
+  const offer: Offer = {
+    id: crypto.randomUUID(),
+    brandId: brand.id,
+    influencerId: app.influencerId,
+    agencyId: db.influencers.find((i) => i.id === app.influencerId)?.agencyId ?? null,
+    title: job.title,
+    budget: app.proposedBudget,
+    contentType: job.contentType,
+    dueDate: job.dueDate,
+    usageRightsDays: job.usageRightsDays,
+    revisions: job.revisions,
+    brief: `${job.description}\n\n— Üretici pitch: ${app.pitch}`,
+    status: "accepted",
+    tokenCost: 150,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  db.offers.unshift(offer);
+  app.offerId = offer.id;
+
+  const collab: Collaboration = {
+    id: crypto.randomUUID(),
+    offerId: offer.id,
+    brandId: brand.id,
+    influencerId: app.influencerId,
+    agencyId: offer.agencyId,
+    title: job.title,
+    status: "accepted",
+    amount: app.proposedBudget,
+    commission: Math.round(app.proposedBudget * 0.1),
+    escrowHeld: false,
+    contractSignedAt: new Date().toISOString(),
+    timeline: [
+      {
+        at: job.createdAt,
+        label: "İş ilanı yayınlandı",
+        by: brand.company,
+      },
+      {
+        at: app.createdAt,
+        label: "Üretici teklif gönderdi",
+        by: "Üretici",
+      },
+      {
+        at: new Date().toISOString(),
+        label: "Teklif kabul · sözleşme oluştu",
+        by: brand.company,
+      },
+    ],
+  };
+  db.collaborations.unshift(collab);
+  job.status = "filled";
+  job.updatedAt = new Date().toISOString();
+
+  // reject other pending apps
+  for (const other of db.jobApplications) {
+    if (
+      other.jobId === job.id &&
+      other.id !== app.id &&
+      other.status === "pending"
+    ) {
+      other.status = "rejected";
+      other.updatedAt = new Date().toISOString();
+    }
+  }
+
+  writeDb(db);
+  addAudit({
+    actor: brandUser.email,
+    actorType: "user",
+    action: "job.accept",
+    entity: "collaboration",
+    entityId: collab.id,
+    detail: job.title,
+  });
+  return {
+    application: enrichJobApp(readDb(), app),
+    offer: enrichOffer(readDb(), offer),
+    collaboration: enrichCollab(readDb(), collab),
+  };
 }

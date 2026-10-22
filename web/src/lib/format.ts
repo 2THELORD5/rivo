@@ -1,4 +1,9 @@
-import type { CollaborationStatus, OfferStatus } from "./types";
+import type {
+  CollaborationStatus,
+  JobApplicationStatus,
+  JobStatus,
+  OfferStatus,
+} from "./types";
 
 export function formatTL(n: number) {
   return new Intl.NumberFormat("tr-TR", {
@@ -63,4 +68,25 @@ export function tierLabel(tier: string | null | undefined) {
   if (tier === "growth") return "Büyüme · 9.999 TL";
   if (tier === "enterprise") return "Kurumsal · 29.999 TL";
   return "Abonelik yok";
+}
+
+const jobLabels: Record<JobStatus, string> = {
+  open: "Açık",
+  closed: "Kapalı",
+  filled: "Doldu",
+};
+
+const jobAppLabels: Record<JobApplicationStatus, string> = {
+  pending: "Beklemede",
+  accepted: "Kabul",
+  rejected: "Red",
+  withdrawn: "Çekildi",
+};
+
+export function jobStatusLabel(s: JobStatus) {
+  return jobLabels[s];
+}
+
+export function jobAppStatusLabel(s: JobApplicationStatus) {
+  return jobAppLabels[s];
 }

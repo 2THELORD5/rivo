@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Bell,
+  Briefcase,
   Building2,
   ChevronDown,
   FileSearch,
@@ -29,6 +30,7 @@ const navByRole = {
   brand: [
     { href: "/app", label: "Özet", icon: LayoutDashboard },
     { href: "/app/discover", label: "Keşfet", icon: Users },
+    { href: "/app/jobs", label: "İş ilanları", icon: Briefcase },
     { href: "/app/offers", label: "Teklifler", icon: Handshake },
     { href: "/app/collaborations", label: "İşbirlikleri", icon: Wallet },
     { href: "/app/messages", label: "Mesajlar", icon: MessageSquare, badge: true },
@@ -37,6 +39,7 @@ const navByRole = {
   influencer: [
     { href: "/app", label: "Özet", icon: LayoutDashboard },
     { href: "/app/profile", label: "Medya kiti", icon: UserRound },
+    { href: "/app/jobs", label: "İş ilanları", icon: Briefcase },
     { href: "/app/offers", label: "Teklifler", icon: Handshake },
     { href: "/app/collaborations", label: "İşbirlikleri", icon: Wallet },
     { href: "/app/messages", label: "Mesajlar", icon: MessageSquare, badge: true },
@@ -45,6 +48,7 @@ const navByRole = {
   ],
   agency: [
     { href: "/app", label: "Panel", icon: LayoutDashboard },
+    { href: "/app/jobs", label: "İş ilanları", icon: Briefcase },
     { href: "/app/offers", label: "Teklifler", icon: Handshake },
     { href: "/app/collaborations", label: "İşbirlikleri", icon: Wallet },
     { href: "/app/messages", label: "Mesajlar", icon: MessageSquare, badge: true },
