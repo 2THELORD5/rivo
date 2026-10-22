@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "@/components/AuthProvider";
@@ -53,7 +53,6 @@ function GoogleIcon() {
 
 function LoginForm() {
   const { login, loginOAuth } = useAuth();
-  const router = useRouter();
   const params = useSearchParams();
   const preferred = (params.get("role") as Role | null) ?? "brand";
   const wantAdmin = params.get("admin") === "1";
@@ -69,8 +68,11 @@ function LoginForm() {
   const [adminUser, setAdminUser] = useState<string>(ADMIN_CREDENTIALS.username);
   const [adminPass, setAdminPass] = useState<string>(ADMIN_CREDENTIALS.password);
 
-  async function goAfter(user: { onboardingCompleted?: boolean }) {
-    router.push(user.onboardingCompleted === false ? "/onboarding" : "/app");
+  function goAfter(user: { onboardingCompleted?: boolean }) {
+    const dest =
+      user.onboardingCompleted === false ? "/onboarding" : "/app";
+    // Full navigation so session cookies are guaranteed on next document
+    window.location.assign(dest);
   }
 
   async function submitEmail(next?: string) {
@@ -78,10 +80,9 @@ function LoginForm() {
     setError("");
     try {
       await login(next ?? email);
-      router.push("/app");
+      window.location.assign("/app");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Giriş yapılamadı");
-    } finally {
       setLoading(false);
     }
   }
@@ -91,10 +92,9 @@ function LoginForm() {
     setError("");
     try {
       const user = await loginOAuth(provider, oauthRole);
-      await goAfter(user);
+      goAfter(user);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Giriş yapılamadı");
-    } finally {
       setLoading(false);
     }
   }
@@ -106,14 +106,17 @@ function LoginForm() {
       const res = await fetch("/api/admin/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: adminUser, password: adminPass }),
+        credentials: "same-origin",
+        body: JSON.stringify({
+          username: adminUser.trim(),
+          password: adminPass,
+        }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Yönetici girişi başarısız");
-      router.push("/admin");
+      window.location.assign("/admin");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Yönetici girişi başarısız");
-    } finally {
       setLoading(false);
     }
   }

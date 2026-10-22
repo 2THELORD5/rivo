@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import os from "os";
 import path from "path";
 import { createSeed } from "./seed";
 import type {
@@ -15,12 +16,18 @@ import type {
   User,
 } from "./types";
 
-const DATA_DIR = path.join(process.cwd(), "data");
-const DB_PATH = path.join(DATA_DIR, "db.json");
+/** Vercel/serverless: cwd is read-only → prefer /tmp + memory */
+const IS_SERVERLESS =
+  process.env.VERCEL === "1" ||
+  process.env.AWS_LAMBDA_FUNCTION_NAME != null ||
+  process.env.NEXT_RUNTIME === "nodejs";
 
-function ensureDir() {
-  if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
-}
+const LOCAL_DIR = path.join(process.cwd(), "data");
+const LOCAL_PATH = path.join(LOCAL_DIR, "db.json");
+const TMP_PATH = path.join(os.tmpdir(), "rivo-db.json");
+
+let memoryDb: DbShape | null = null;
+let resolvedPath: string | null = null;
 
 function migrate(db: DbShape): DbShape {
   if (!Array.isArray(db.messages)) db.messages = [];
@@ -28,35 +35,78 @@ function migrate(db: DbShape): DbShape {
   return db;
 }
 
+function tryRead(filePath: string): DbShape | null {
+  try {
+    if (!existsSync(filePath)) return null;
+    return migrate(JSON.parse(readFileSync(filePath, "utf8")) as DbShape);
+  } catch {
+    return null;
+  }
+}
+
+function tryWrite(filePath: string, db: DbShape): boolean {
+  try {
+    mkdirSync(path.dirname(filePath), { recursive: true });
+    writeFileSync(filePath, JSON.stringify(db, null, 2), "utf8");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function persist(db: DbShape) {
+  memoryDb = db;
+  const targets = resolvedPath
+    ? [resolvedPath]
+    : IS_SERVERLESS
+      ? [TMP_PATH, LOCAL_PATH]
+      : [LOCAL_PATH, TMP_PATH];
+  for (const p of targets) {
+    if (tryWrite(p, db)) {
+      resolvedPath = p;
+      return;
+    }
+  }
+  // memory-only fallback (still works for current instance)
+}
+
 export function ensureDb(): DbShape {
-  ensureDir();
-  if (!existsSync(DB_PATH)) {
-    const seed = createSeed();
-    writeFileSync(DB_PATH, JSON.stringify(seed, null, 2), "utf8");
-    return seed;
+  if (memoryDb) return memoryDb;
+
+  const fromDisk =
+    tryRead(LOCAL_PATH) ||
+    tryRead(TMP_PATH) ||
+    (resolvedPath ? tryRead(resolvedPath) : null);
+  if (fromDisk) {
+    memoryDb = fromDisk;
+    if (existsSync(LOCAL_PATH)) resolvedPath = LOCAL_PATH;
+    else if (existsSync(TMP_PATH)) resolvedPath = TMP_PATH;
+    return memoryDb;
   }
-  const raw = JSON.parse(readFileSync(DB_PATH, "utf8")) as DbShape;
-  const db = migrate(raw);
-  if (!Array.isArray(raw.messages) || !Array.isArray(raw.auditLogs)) {
-    writeFileSync(DB_PATH, JSON.stringify(db, null, 2), "utf8");
-  }
-  return db;
+
+  const seed = migrate(createSeed());
+  persist(seed);
+  return seed;
 }
 
 export function addAudit(entry: Omit<AuditLog, "id" | "at"> & { at?: string }) {
-  const db = readDb();
-  db.auditLogs.unshift({
-    id: crypto.randomUUID(),
-    at: entry.at ?? new Date().toISOString(),
-    actor: entry.actor,
-    actorType: entry.actorType,
-    action: entry.action,
-    entity: entry.entity,
-    entityId: entry.entityId,
-    detail: entry.detail,
-  });
-  if (db.auditLogs.length > 500) db.auditLogs.length = 500;
-  writeDb(db);
+  try {
+    const db = readDb();
+    db.auditLogs.unshift({
+      id: crypto.randomUUID(),
+      at: entry.at ?? new Date().toISOString(),
+      actor: entry.actor,
+      actorType: entry.actorType,
+      action: entry.action,
+      entity: entry.entity,
+      entityId: entry.entityId,
+      detail: entry.detail,
+    });
+    if (db.auditLogs.length > 500) db.auditLogs.length = 500;
+    writeDb(db);
+  } catch {
+    // never block auth/actions on audit failure
+  }
 }
 
 export function readDb(): DbShape {
@@ -64,13 +114,12 @@ export function readDb(): DbShape {
 }
 
 export function writeDb(db: DbShape) {
-  ensureDir();
-  writeFileSync(DB_PATH, JSON.stringify(db, null, 2), "utf8");
+  persist(db);
 }
 
 export function resetDb() {
-  const seed = createSeed();
-  writeDb(seed);
+  const seed = migrate(createSeed());
+  persist(seed);
   return seed;
 }
 
