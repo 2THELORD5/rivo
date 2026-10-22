@@ -8,7 +8,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { Avatar, Button, Card, Input, Logo } from "@/components/ui";
 import { MagneticButton } from "@/components/motion-ui";
 import { BRAND } from "@/lib/brand";
-import type { Role } from "@/lib/types";
+import { ADMIN_CREDENTIALS, type Role } from "@/lib/types";
 import { easeOut } from "@/lib/motion";
 
 const demos = [
@@ -66,8 +66,8 @@ function LoginForm() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showAdmin, setShowAdmin] = useState(wantAdmin);
-  const [adminUser, setAdminUser] = useState("rivoadmin");
-  const [adminPass, setAdminPass] = useState("");
+  const [adminUser, setAdminUser] = useState(ADMIN_CREDENTIALS.username);
+  const [adminPass, setAdminPass] = useState(ADMIN_CREDENTIALS.password);
 
   async function goAfter(user: { onboardingCompleted?: boolean }) {
     router.push(user.onboardingCompleted === false ? "/onboarding" : "/app");
