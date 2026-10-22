@@ -66,8 +66,8 @@ function LoginForm() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showAdmin, setShowAdmin] = useState(wantAdmin);
-  const [adminUser, setAdminUser] = useState(ADMIN_CREDENTIALS.username);
-  const [adminPass, setAdminPass] = useState(ADMIN_CREDENTIALS.password);
+  const [adminUser, setAdminUser] = useState<string>(ADMIN_CREDENTIALS.username);
+  const [adminPass, setAdminPass] = useState<string>(ADMIN_CREDENTIALS.password);
 
   async function goAfter(user: { onboardingCompleted?: boolean }) {
     router.push(user.onboardingCompleted === false ? "/onboarding" : "/app");
