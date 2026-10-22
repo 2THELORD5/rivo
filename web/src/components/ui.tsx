@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { motion } from "framer-motion";
+import type { LucideIcon } from "lucide-react";
 import type {
   ButtonHTMLAttributes,
   InputHTMLAttributes,
@@ -11,6 +13,37 @@ import { cn } from "@/lib/cn";
 import { avatarColors, initials } from "@/lib/avatar";
 import { springSnappy } from "@/lib/motion";
 
+type BtnVariant = "primary" | "secondary" | "outline" | "ghost" | "danger";
+type BtnSize = "sm" | "md" | "lg";
+
+const btnVariants: Record<BtnVariant, string> = {
+  primary: "btn-gradient border-0",
+  secondary: "bg-ink text-white hover:bg-ink-2",
+  outline:
+    "bg-paper text-ink border border-line-strong hover:bg-wash hover:border-ink/20",
+  ghost: "bg-transparent text-slate hover:bg-wash-2 hover:text-ink",
+  danger: "bg-rose-wash text-rose hover:brightness-95",
+};
+
+const btnSizes: Record<BtnSize, string> = {
+  sm: "h-8 px-3 text-[13px] rounded-[9px] gap-1.5",
+  md: "h-10 px-4 text-sm rounded-[11px] gap-2",
+  lg: "h-12 px-6 text-[15px] rounded-[13px] gap-2.5",
+};
+
+export function buttonClass(
+  variant: BtnVariant = "primary",
+  size: BtnSize = "md",
+  className?: string,
+) {
+  return cn(
+    "inline-flex items-center justify-center font-semibold transition-colors disabled:pointer-events-none disabled:opacity-40",
+    btnVariants[variant],
+    btnSizes[size],
+    className,
+  );
+}
+
 export function Button({
   className,
   variant = "primary",
@@ -18,23 +51,9 @@ export function Button({
   children,
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "secondary" | "outline" | "ghost" | "danger";
-  size?: "sm" | "md" | "lg";
+  variant?: BtnVariant;
+  size?: BtnSize;
 }) {
-  const variants = {
-    primary: "btn-gradient border-0",
-    secondary: "bg-ink text-white hover:bg-ink-2",
-    outline:
-      "bg-paper text-ink border border-line-strong hover:bg-wash hover:border-ink/20",
-    ghost: "bg-transparent text-slate hover:bg-wash-2 hover:text-ink",
-    danger: "bg-rose-wash text-rose hover:brightness-95",
-  };
-  const sizes = {
-    sm: "h-8 px-3 text-[13px] rounded-[9px] gap-1.5",
-    md: "h-10 px-4 text-sm rounded-[11px] gap-2",
-    lg: "h-12 px-6 text-[15px] rounded-[13px] gap-2.5",
-  };
-
   return (
     <motion.button
       type={props.type ?? "button"}
@@ -47,15 +66,30 @@ export function Button({
       whileHover={props.disabled ? undefined : { y: -1 }}
       whileTap={props.disabled ? undefined : { scale: 0.985 }}
       transition={springSnappy}
-      className={cn(
-        "inline-flex items-center justify-center font-semibold transition-colors disabled:pointer-events-none disabled:opacity-40",
-        variants[variant],
-        sizes[size],
-        className,
-      )}
+      className={buttonClass(variant, size, className)}
     >
       {children}
     </motion.button>
+  );
+}
+
+export function ButtonLink({
+  href,
+  className,
+  variant = "primary",
+  size = "md",
+  children,
+}: {
+  href: string;
+  className?: string;
+  variant?: BtnVariant;
+  size?: BtnSize;
+  children: ReactNode;
+}) {
+  return (
+    <Link href={href} className={buttonClass(variant, size, className)}>
+      {children}
+    </Link>
   );
 }
 
@@ -232,10 +266,12 @@ export function EmptyState({
   title,
   body,
   action,
+  icon: Icon,
 }: {
   title: string;
   body: string;
   action?: ReactNode;
+  icon?: LucideIcon;
 }) {
   return (
     <motion.div
@@ -243,13 +279,52 @@ export function EmptyState({
       animate={{ opacity: 1, scale: 1 }}
       className="surface px-6 py-16 text-center"
     >
-      <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-wash-2">
-        <span className="h-2 w-2 rounded-full bg-accent" />
+      <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[#ff4d6d]/15 to-[#7c5cff]/15 text-[#ff4d6d] ring-1 ring-black/5">
+        {Icon ? <Icon size={22} strokeWidth={1.75} /> : (
+          <span className="h-2 w-2 rounded-full bg-accent" />
+        )}
       </div>
       <p className="font-display text-xl text-ink">{title}</p>
       <p className="mx-auto mt-2 max-w-md text-sm text-muted">{body}</p>
-      {action ? <div className="mt-6 flex justify-center">{action}</div> : null}
+      {action ? <div className="mt-6 flex justify-center gap-2">{action}</div> : null}
     </motion.div>
+  );
+}
+
+export function FilterChip({
+  active,
+  onClick,
+  children,
+  count,
+}: {
+  active?: boolean;
+  onClick: () => void;
+  children: ReactNode;
+  count?: number;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-semibold transition",
+        active
+          ? "bg-ink text-white"
+          : "border border-line bg-paper text-slate hover:border-ink/20 hover:text-ink",
+      )}
+    >
+      {children}
+      {typeof count === "number" ? (
+        <span
+          className={cn(
+            "tabular rounded-full px-1.5 text-[10px]",
+            active ? "bg-white/20" : "bg-wash-2 text-muted",
+          )}
+        >
+          {count}
+        </span>
+      ) : null}
+    </button>
   );
 }
 

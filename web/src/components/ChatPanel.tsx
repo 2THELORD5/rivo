@@ -30,7 +30,9 @@ export function ChatPanel({
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+  const [live, setLive] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const load = useCallback(async () => {
     if (!threadId) return;
@@ -38,12 +40,15 @@ export function ChatPanel({
       `/api/messages?thread=${encodeURIComponent(threadId)}`,
     );
     const data = await res.json();
-    if (res.ok) setMessages(data.messages ?? []);
+    if (res.ok) {
+      setMessages(data.messages ?? []);
+      setLive(true);
+    }
   }, [threadId]);
 
   useEffect(() => {
     void load();
-    const t = window.setInterval(() => void load(), 4000);
+    const t = window.setInterval(() => void load(), 3500);
     return () => window.clearInterval(t);
   }, [load]);
 
@@ -68,35 +73,45 @@ export function ChatPanel({
     }
     setText("");
     setMessages((prev) => [...prev, data.message]);
+    inputRef.current?.focus();
   }
 
   return (
     <div
       className={cn(
-        "flex flex-col overflow-hidden rounded-[var(--radius)] border border-line bg-paper",
-        compact ? "h-[360px]" : "h-[min(560px,70vh)]",
+        "flex flex-col overflow-hidden rounded-[var(--radius)] border border-line bg-paper shadow-[var(--shadow-xs)]",
+        compact ? "h-[380px]" : "h-[min(580px,70vh)]",
       )}
     >
-      <div className="border-b border-line px-4 py-3">
-        <p className="text-sm font-semibold text-ink">{title ?? "Sohbet"}</p>
-        <p className="text-[11px] text-muted">
-          Karşı taraf gerçek zamanlı görür · 4 sn yenileme
-        </p>
-      </div>
-      <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
-        {messages.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted">
-            Henüz mesaj yok. Brief, revizyon veya teslim için yazın.
+      <div className="flex items-center justify-between border-b border-line px-4 py-3">
+        <div>
+          <p className="text-sm font-semibold text-ink">{title ?? "Sohbet"}</p>
+          <p className="text-[11px] text-muted">
+            {live ? (
+              <span className="inline-flex items-center gap-1.5">
+                <span className="pulse-dot h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                Canlı
+              </span>
+            ) : (
+              "Bağlanıyor…"
+            )}
           </p>
+        </div>
+      </div>
+      <div className="flex-1 space-y-3 overflow-y-auto bg-wash/40 px-4 py-3">
+        {messages.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center py-10 text-center">
+            <p className="text-sm font-medium text-ink">Konuşmayı başlat</p>
+            <p className="mt-1 max-w-xs text-xs text-muted">
+              Brief, revizyon, teslim tarihi veya kargo bilgisi için buradan yazın.
+            </p>
+          </div>
         ) : (
           messages.map((m) => {
             const mine = m.fromUserId === user?.id && !m.system;
             if (m.system) {
               return (
-                <p
-                  key={m.id}
-                  className="text-center text-[11px] text-muted"
-                >
+                <p key={m.id} className="text-center text-[11px] text-muted">
                   {m.body}
                 </p>
               );
@@ -104,30 +119,27 @@ export function ChatPanel({
             return (
               <div
                 key={m.id}
-                className={cn(
-                  "flex gap-2",
-                  mine ? "flex-row-reverse" : "flex-row",
-                )}
+                className={cn("flex gap-2", mine ? "flex-row-reverse" : "flex-row")}
               >
                 <Avatar name={m.fromName} size={28} />
                 <div
                   className={cn(
-                    "max-w-[75%] rounded-2xl px-3 py-2 text-sm",
+                    "max-w-[78%] rounded-2xl px-3.5 py-2 text-sm shadow-sm",
                     mine
-                      ? "bg-ink text-white"
-                      : "bg-wash text-ink ring-1 ring-black/5",
+                      ? "rounded-br-md bg-ink text-white"
+                      : "rounded-bl-md bg-paper text-ink ring-1 ring-black/5",
                   )}
                 >
                   {!mine ? (
-                    <p className="mb-0.5 text-[11px] font-semibold opacity-70">
+                    <p className="mb-0.5 text-[11px] font-semibold text-muted">
                       {m.fromName}
                     </p>
                   ) : null}
                   <p className="whitespace-pre-wrap leading-relaxed">{m.body}</p>
                   <p
                     className={cn(
-                      "mt-1 text-[10px]",
-                      mine ? "text-white/50" : "text-muted",
+                      "mt-1 text-[10px] tabular",
+                      mine ? "text-white/45" : "text-muted",
                     )}
                   >
                     {formatDateTime(m.createdAt)}
@@ -139,10 +151,12 @@ export function ChatPanel({
         )}
         <div ref={bottomRef} />
       </div>
-      <div className="border-t border-line p-3">
+      <div className="border-t border-line bg-paper p-3">
         {error ? <p className="mb-2 text-xs text-rose">{error}</p> : null}
-        <div className="flex gap-2">
-          <input
+        <div className="flex items-end gap-2">
+          <textarea
+            ref={inputRef}
+            rows={1}
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
@@ -152,12 +166,20 @@ export function ChatPanel({
               }
             }}
             placeholder="Mesaj yaz…"
-            className="h-10 flex-1 rounded-xl border border-line-strong bg-wash px-3 text-sm outline-none focus:border-[#ff4d6d]"
+            className="max-h-28 min-h-10 flex-1 resize-none rounded-[11px] border border-line-strong bg-wash px-3.5 py-2.5 text-sm text-ink outline-none transition placeholder:text-muted/70 focus:border-[var(--accent)] focus:bg-paper focus:shadow-[0_0_0_3px_rgba(255,77,109,0.15)]"
           />
-          <Button size="sm" disabled={sending || !text.trim()} onClick={() => void send()}>
-            <Send size={14} />
+          <Button
+            size="md"
+            disabled={sending || !text.trim()}
+            onClick={() => void send()}
+            aria-label="Gönder"
+          >
+            <Send size={15} />
           </Button>
         </div>
+        <p className="mt-2 text-[10px] text-muted">
+          Enter gönder · Shift+Enter yeni satır
+        </p>
       </div>
     </div>
   );

@@ -143,6 +143,8 @@ export interface ChatMessage {
   body: string;
   createdAt: string;
   system?: boolean;
+  /** user ids who have seen this message */
+  readBy?: string[];
 }
 
 export interface AuditLog {

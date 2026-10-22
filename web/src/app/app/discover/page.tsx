@@ -1,16 +1,16 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { BadgeCheck, Search } from "lucide-react";
+import { BadgeCheck, Search, Users } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 import {
   Avatar,
   Badge,
-  Button,
+  ButtonLink,
   Card,
   EmptyState,
+  FilterChip,
   PageHeader,
 } from "@/components/ui";
 import { Stagger, StaggerItem } from "@/components/motion-ui";
@@ -53,20 +53,32 @@ export default function DiscoverPage() {
   const [list, setList] = useState<Inf[]>([]);
   const [niche, setNiche] = useState("Tümü");
   const [q, setQ] = useState("");
+  const [minFollowers, setMinFollowers] = useState(0);
+  const [sort, setSort] = useState<"reach" | "budget" | "trust">("reach");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
     const params = new URLSearchParams({ niche, q });
+    if (minFollowers > 0) params.set("minFollowers", String(minFollowers));
     fetch(`/api/influencers?${params}`)
       .then((r) => r.json())
-      .then((d) => setList(d.influencers ?? []))
+      .then((d) => {
+        const items = (d.influencers ?? []) as Inf[];
+        items.sort((a, b) => {
+          if (sort === "budget") return a.minBudget - b.minBudget;
+          if (sort === "trust") return b.reliabilityScore - a.reliabilityScore;
+          return b.monthlyReach - a.monthlyReach;
+        });
+        setList(items);
+      })
       .finally(() => setLoading(false));
-  }, [niche, q]);
+  }, [niche, q, minFollowers, sort]);
 
   if (user?.role !== "brand") {
     return (
       <EmptyState
+        icon={Users}
         title="Bu alan marka hesaplarına açık"
         body="Üretici veya ajans hesabıyla keşif kullanılmaz."
       />
@@ -85,9 +97,9 @@ export default function DiscoverPage() {
           <p className="text-sm text-muted">
             Plan seçerek doğrulanmış üretici listesine erişin.
           </p>
-          <Link href="/app/subscription" className="mt-4 inline-block">
-            <Button>Planları gör</Button>
-          </Link>
+          <div className="mt-4">
+            <ButtonLink href="/app/subscription">Planları gör</ButtonLink>
+          </div>
         </Card>
       </div>
     );
@@ -119,29 +131,51 @@ export default function DiscoverPage() {
         </div>
         <div className="flex flex-wrap gap-1.5">
           {niches.map((n) => (
-            <button
-              key={n}
-              onClick={() => setNiche(n)}
-              className="relative rounded-full px-3 py-1.5 text-[12px] font-semibold"
-            >
-              {niche === n ? (
-                <motion.span
-                  layoutId="niche-pill"
-                  className="absolute inset-0 rounded-full bg-ink"
-                  transition={{ type: "spring", stiffness: 420, damping: 34 }}
-                />
-              ) : (
-                <span className="absolute inset-0 rounded-full border border-line bg-paper" />
-              )}
-              <span
-                className={`relative z-10 ${niche === n ? "text-white" : "text-slate"}`}
-              >
-                {n}
-              </span>
-            </button>
+            <FilterChip key={n} active={niche === n} onClick={() => setNiche(n)}>
+              {n}
+            </FilterChip>
           ))}
         </div>
       </motion.div>
+
+      <div className="mb-5 flex flex-wrap gap-1.5">
+        <FilterChip
+          active={minFollowers === 0}
+          onClick={() => setMinFollowers(0)}
+        >
+          Tüm erişim
+        </FilterChip>
+        <FilterChip
+          active={minFollowers === 50000}
+          onClick={() => setMinFollowers(50000)}
+        >
+          50K+
+        </FilterChip>
+        <FilterChip
+          active={minFollowers === 100000}
+          onClick={() => setMinFollowers(100000)}
+        >
+          100K+
+        </FilterChip>
+        <FilterChip
+          active={sort === "reach"}
+          onClick={() => setSort("reach")}
+        >
+          Erişim
+        </FilterChip>
+        <FilterChip
+          active={sort === "budget"}
+          onClick={() => setSort("budget")}
+        >
+          Bütçe ↑
+        </FilterChip>
+        <FilterChip
+          active={sort === "trust"}
+          onClick={() => setSort("trust")}
+        >
+          Güven
+        </FilterChip>
+      </div>
 
       {loading ? (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -149,6 +183,25 @@ export default function DiscoverPage() {
             <div key={i} className="skeleton h-56" />
           ))}
         </div>
+      ) : list.length === 0 ? (
+        <EmptyState
+          icon={Users}
+          title="Sonuç yok"
+          body="Filtreleri temizleyip tekrar dene."
+          action={
+            <button
+              type="button"
+              className="text-sm font-semibold text-[#ff4d6d]"
+              onClick={() => {
+                setNiche("Tümü");
+                setQ("");
+                setMinFollowers(0);
+              }}
+            >
+              Filtreleri sıfırla
+            </button>
+          }
+        />
       ) : (
         <Stagger className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" fast>
           {list.map((inf) => {
@@ -204,11 +257,13 @@ export default function DiscoverPage() {
                         {formatTL(inf.minBudget)}
                       </p>
                     </div>
-                    <Link href={`/app/discover/${inf.id}`} onClick={(e) => e.stopPropagation()}>
-                      <Button size="sm" variant="outline">
-                        İncele
-                      </Button>
-                    </Link>
+                    <ButtonLink
+                      href={`/app/discover/${inf.id}`}
+                      size="sm"
+                      variant="outline"
+                    >
+                      İncele
+                    </ButtonLink>
                   </div>
                 </Card>
               </StaggerItem>

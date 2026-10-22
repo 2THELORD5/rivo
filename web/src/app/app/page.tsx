@@ -5,7 +5,15 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowUpRight } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
-import { Avatar, Badge, Button, Card, PageHeader, Stat } from "@/components/ui";
+import {
+  Avatar,
+  Badge,
+  Button,
+  ButtonLink,
+  Card,
+  PageHeader,
+  Stat,
+} from "@/components/ui";
 import { CountUp, Stagger, StaggerItem } from "@/components/motion-ui";
 import { formatDateTime, formatTL, tierLabel } from "@/lib/format";
 
@@ -48,17 +56,13 @@ export default function DashboardPage() {
         }
         action={
           user.role === "brand" ? (
-            <Link href="/app/discover">
-              <Button>
-                Üretici bul <ArrowUpRight size={16} />
-              </Button>
-            </Link>
+            <ButtonLink href="/app/discover">
+              Üretici bul <ArrowUpRight size={16} />
+            </ButtonLink>
           ) : (
-            <Link href="/app/offers">
-              <Button>
-                Teklifler <ArrowUpRight size={16} />
-              </Button>
-            </Link>
+            <ButtonLink href="/app/offers">
+              Teklifler <ArrowUpRight size={16} />
+            </ButtonLink>
           )
         }
       />
@@ -195,6 +199,7 @@ export default function DashboardPage() {
 }
 
 function AgencyHome({ data }: { data: Record<string, unknown> }) {
+  const { user } = useAuth();
   const influencers = (data.influencers as Array<Record<string, unknown>>) ?? [];
   const collabs = (data.collabs as Array<Record<string, unknown>>) ?? [];
 
@@ -202,12 +207,12 @@ function AgencyHome({ data }: { data: Record<string, unknown> }) {
     <div>
       <PageHeader
         kicker="Ajans"
-        title="Atlas Ajans"
+        title={user?.agencyName || "Ajans paneli"}
         subtitle="Teklif, sözleşme ve ödeme durumu tek panelde."
         action={
-          <Link href="/app/roster">
-            <Button variant="outline">Kadroyu gör</Button>
-          </Link>
+          <ButtonLink href="/app/roster" variant="outline">
+            Kadroyu gör
+          </ButtonLink>
         }
       />
       <div className="grid gap-3 sm:grid-cols-3">

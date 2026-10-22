@@ -4,11 +4,12 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, Check } from "lucide-react";
+import { ArrowLeft, Check, ExternalLink } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
-import { Badge, Button, Card, PageHeader } from "@/components/ui";
+import { Badge, Button, Card, Input, PageHeader } from "@/components/ui";
 import { useToast } from "@/components/Toast";
 import { ChatPanel } from "@/components/ChatPanel";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { collabStatusLabel, formatDateTime, formatTL } from "@/lib/format";
 
 type Collab = {
@@ -24,6 +25,7 @@ type Collab = {
   agencyName?: string | null;
   brandScore: number;
   postUrl?: string | null;
+  draftUrl?: string | null;
   verifiedAt?: string | null;
   timeline: { at: string; label: string; by: string }[];
 };
@@ -47,6 +49,23 @@ function stepIndex(status: string) {
   return 0;
 }
 
+function nextHint(status: string, role?: string) {
+  if (status === "disputed") return "İtiraz açık — taraflar sohbetten çözmeli.";
+  if (status === "cancelled") return "Bu iş iptal edildi.";
+  if (status === "accepted" && role === "brand")
+    return "Sıradaki: ödemeyi havuza yatır.";
+  if (status === "funded" && role !== "brand")
+    return "Sıradaki: içeriğe başla veya taslak gönder.";
+  if (status === "in_progress" && role !== "brand")
+    return "Sıradaki: taslak veya yayın linki gönder.";
+  if (status === "content_review" && role === "brand")
+    return "Sıradaki: taslağı onayla.";
+  if (status === "published" && role === "brand")
+    return "Sıradaki: yayını doğrula ve ödemeyi serbest bırak.";
+  if (status === "paid") return "Ödeme tamamlandı.";
+  return "Durumu sohbet ve işlemlerle ilerlet.";
+}
+
 export default function CollaborationDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
@@ -54,6 +73,9 @@ export default function CollaborationDetailPage() {
   const [c, setC] = useState<Collab | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [urlModal, setUrlModal] = useState<null | "draft" | "publish">(null);
+  const [url, setUrl] = useState("https://");
+  const [disputeOpen, setDisputeOpen] = useState(false);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/collaborations/${id}`);
@@ -81,6 +103,8 @@ export default function CollaborationDetailPage() {
       return;
     }
     setC(data.collaboration);
+    setUrlModal(null);
+    setDisputeOpen(false);
     const labels: Record<string, string> = {
       fund: "Ödeme havuza alındı",
       start_content: "İçerik üretimi başladı",
@@ -99,6 +123,7 @@ export default function CollaborationDetailPage() {
   const idx = stepIndex(c.status);
   const isBrand = user?.role === "brand";
   const isInf = user?.role === "influencer" || user?.role === "agency";
+  const blocked = c.status === "disputed" || c.status === "cancelled";
 
   return (
     <div>
@@ -113,36 +138,59 @@ export default function CollaborationDetailPage() {
         title={c.title}
         subtitle={`${c.brandName} · @${c.influencerHandle}${c.agencyName ? ` · ${c.agencyName}` : ""}`}
         action={
-          <Badge tone="accent">{collabStatusLabel(c.status as never)}</Badge>
+          <Badge tone={blocked ? "danger" : "accent"}>
+            {collabStatusLabel(c.status as never)}
+          </Badge>
         }
       />
 
       <Card className="mb-4">
-        <div className="flex items-center justify-between gap-2 overflow-x-auto pb-1">
-          {steps.map((s, i) => {
-            const done = idx > i || (idx === i && c.status === "paid");
-            const current = idx === i && c.status !== "paid";
-            return (
-              <div key={s.key} className="flex min-w-[70px] flex-1 flex-col items-center">
-                <div
-                  className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold ${
-                    done || current
-                      ? "bg-accent text-white"
-                      : "bg-wash-2 text-muted"
-                  }`}
-                >
-                  {done && !current ? <Check size={14} /> : i + 1}
-                </div>
-                <p className="mt-1.5 text-center text-[10px] font-semibold tracking-wide text-muted uppercase">
-                  {s.label}
-                </p>
-                {i < steps.length - 1 ? (
-                  <span className="sr-only">sonraki</span>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
+        {blocked ? (
+          <p className="rounded-xl bg-rose-wash px-4 py-3 text-sm text-rose">
+            {nextHint(c.status, user?.role)}
+          </p>
+        ) : (
+          <>
+            <div className="relative flex items-center justify-between gap-1 overflow-x-auto pb-1">
+              <div className="absolute top-4 right-4 left-4 h-0.5 bg-line" />
+              <div
+                className="absolute top-4 left-4 h-0.5 bg-[#ff4d6d] transition-all"
+                style={{
+                  width:
+                    idx < 0
+                      ? "0%"
+                      : `calc(${(idx / (steps.length - 1)) * 100}% - 0px)`,
+                }}
+              />
+              {steps.map((s, i) => {
+                const done = idx > i || (idx === i && c.status === "paid");
+                const current = idx === i && c.status !== "paid";
+                return (
+                  <div
+                    key={s.key}
+                    className="relative z-10 flex min-w-[72px] flex-1 flex-col items-center"
+                  >
+                    <div
+                      className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold ring-4 ring-paper ${
+                        done || current
+                          ? "bg-[#ff4d6d] text-white"
+                          : "bg-wash-2 text-muted"
+                      }`}
+                    >
+                      {done && !current ? <Check size={14} /> : i + 1}
+                    </div>
+                    <p className="mt-1.5 text-center text-[10px] font-semibold tracking-wide text-muted uppercase">
+                      {s.label}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="mt-4 rounded-xl bg-wash px-4 py-3 text-sm text-slate">
+              {nextHint(c.status, user?.role)}
+            </p>
+          </>
+        )}
       </Card>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -152,7 +200,7 @@ export default function CollaborationDetailPage() {
             {[
               ["Brüt tutar", formatTL(c.amount)],
               ["Hizmet bedeli (%10)", formatTL(c.commission)],
-              ["Escrow durumu", c.escrowHeld ? "Havuzda bekliyor" : "Serbest / kapalı"],
+              ["Escrow", c.escrowHeld ? "Havuzda bekliyor" : "Serbest / kapalı"],
               ["Marka güven skoru", `%${c.brandScore}`],
             ].map(([k, v]) => (
               <div key={k} className="flex justify-between py-2.5">
@@ -160,10 +208,34 @@ export default function CollaborationDetailPage() {
                 <dd className="font-semibold text-ink">{v}</dd>
               </div>
             ))}
+            {c.draftUrl ? (
+              <div className="flex justify-between gap-4 py-2.5">
+                <dt className="text-muted">Taslak</dt>
+                <dd>
+                  <a
+                    href={c.draftUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 font-medium text-[#ff4d6d]"
+                  >
+                    Aç <ExternalLink size={12} />
+                  </a>
+                </dd>
+              </div>
+            ) : null}
             {c.postUrl ? (
               <div className="flex justify-between gap-4 py-2.5">
-                <dt className="text-muted">Yayın bağlantısı</dt>
-                <dd className="truncate font-medium text-accent">{c.postUrl}</dd>
+                <dt className="text-muted">Yayın</dt>
+                <dd>
+                  <a
+                    href={c.postUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex max-w-[220px] items-center gap-1 truncate font-medium text-[#ff4d6d]"
+                  >
+                    {c.postUrl} <ExternalLink size={12} />
+                  </a>
+                </dd>
               </div>
             ) : null}
           </dl>
@@ -175,12 +247,12 @@ export default function CollaborationDetailPage() {
             {error ? <p className="mt-2 text-sm text-rose">{error}</p> : null}
             <div className="mt-3 flex flex-wrap gap-2">
               {isBrand && c.status === "accepted" ? (
-                <Button disabled={busy} onClick={() => act("fund")}>
+                <Button disabled={busy} onClick={() => void act("fund")}>
                   Ödemeyi havuza yatır
                 </Button>
               ) : null}
               {isInf && c.status === "funded" ? (
-                <Button disabled={busy} onClick={() => act("start_content")}>
+                <Button disabled={busy} onClick={() => void act("start_content")}>
                   İçeriğe başla
                 </Button>
               ) : null}
@@ -188,15 +260,16 @@ export default function CollaborationDetailPage() {
                 <Button
                   disabled={busy}
                   variant="outline"
-                  onClick={() =>
-                    act("submit_draft", { url: "https://drive.google.com/file/d/taslak" })
-                  }
+                  onClick={() => {
+                    setUrl(c.draftUrl || "https://drive.google.com/");
+                    setUrlModal("draft");
+                  }}
                 >
                   Taslak gönder
                 </Button>
               ) : null}
               {isBrand && c.status === "content_review" ? (
-                <Button disabled={busy} onClick={() => act("approve_draft")}>
+                <Button disabled={busy} onClick={() => void act("approve_draft")}>
                   Taslağı onayla
                 </Button>
               ) : null}
@@ -204,11 +277,13 @@ export default function CollaborationDetailPage() {
               ["in_progress", "content_review", "funded"].includes(c.status) ? (
                 <Button
                   disabled={busy}
-                  onClick={() =>
-                    act("publish", {
-                      url: `https://instagram.com/p/${c.influencerHandle}`,
-                    })
-                  }
+                  onClick={() => {
+                    setUrl(
+                      c.postUrl ||
+                        `https://instagram.com/p/${c.influencerHandle}`,
+                    );
+                    setUrlModal("publish");
+                  }}
                 >
                   Yayına alındı
                 </Button>
@@ -216,12 +291,12 @@ export default function CollaborationDetailPage() {
               {(isBrand || user?.role === "agency") &&
               c.status === "published" &&
               !c.verifiedAt ? (
-                <Button disabled={busy} onClick={() => act("verify")}>
+                <Button disabled={busy} onClick={() => void act("verify")}>
                   Yayını doğrula
                 </Button>
               ) : null}
               {isBrand && c.status === "published" && c.verifiedAt ? (
-                <Button disabled={busy} onClick={() => act("release")}>
+                <Button disabled={busy} onClick={() => void act("release")}>
                   Ödemeyi serbest bırak
                 </Button>
               ) : null}
@@ -230,7 +305,7 @@ export default function CollaborationDetailPage() {
                   disabled={busy}
                   variant="danger"
                   size="sm"
-                  onClick={() => act("dispute", { reason: "Brief uyumsuzluğu" })}
+                  onClick={() => setDisputeOpen(true)}
                 >
                   İtiraz aç
                 </Button>
@@ -238,7 +313,7 @@ export default function CollaborationDetailPage() {
             </div>
             <p className="mt-3 text-[12px] leading-relaxed text-muted">
               Tutarlar lisanslı ödeme kuruluşu altyapısında tutulur. Rivo fon
-              saklamaz; serbest bırakma kuralı sözleşmeye bağlıdır.
+              saklamaz.
             </p>
           </div>
         </Card>
@@ -255,7 +330,7 @@ export default function CollaborationDetailPage() {
                   animate={{ opacity: 1, y: 0 }}
                   className="relative mb-4 pl-6"
                 >
-                  <span className="absolute top-1.5 left-0 h-2.5 w-2.5 rounded-full border-2 border-accent bg-paper" />
+                  <span className="absolute top-1.5 left-0 h-2.5 w-2.5 rounded-full border-2 border-[#ff4d6d] bg-paper" />
                   <p className="text-sm font-medium text-ink">{t.label}</p>
                   <p className="text-[12px] text-muted">
                     {t.by} · {formatDateTime(t.at)}
@@ -268,11 +343,43 @@ export default function CollaborationDetailPage() {
       </div>
 
       <div className="mt-4">
-        <ChatPanel
-          threadId={`collab:${c.id}`}
-          title="İşbirliği sohbeti"
-        />
+        <ChatPanel threadId={`collab:${c.id}`} title="İşbirliği sohbeti" />
       </div>
+
+      <ConfirmDialog
+        open={!!urlModal}
+        title={urlModal === "draft" ? "Taslak linki" : "Yayın linki"}
+        body="Gerçek Drive / Instagram / TikTok bağlantısını yapıştır."
+        confirmLabel="Gönder"
+        busy={busy}
+        onCancel={() => setUrlModal(null)}
+        onConfirm={() => {
+          if (!url.startsWith("http")) {
+            push("Geçerli bir URL gir", "err");
+            return;
+          }
+          if (urlModal === "draft") void act("submit_draft", { url });
+          else void act("publish", { url });
+        }}
+      >
+        <Input
+          label="URL"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="https://"
+        />
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={disputeOpen}
+        title="İtiraz açılsın mı?"
+        body="Ödeme serbest bırakma durur. Brief uyumsuzluğu gerekçesiyle kayda geçer."
+        confirmLabel="İtiraz aç"
+        danger
+        busy={busy}
+        onCancel={() => setDisputeOpen(false)}
+        onConfirm={() => void act("dispute", { reason: "Brief uyumsuzluğu" })}
+      />
     </div>
   );
 }

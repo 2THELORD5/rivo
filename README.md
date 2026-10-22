@@ -27,6 +27,13 @@ Giriş: `/login` → Yönetici girişi
 - Kullanıcı: `rivoadmin`
 - Şifre: `Rivo2026!`
 
+## Özellikler
+
+- Marka / üretici / ajans rolleri + onboarding
+- Keşfet, teklif müzakeresi, escrow işbirliği akışı
+- Thread sohbet (okunmamış sayaç, arama, filtre)
+- Admin paneli + audit log
+
 ## Stack
 
 Next.js · React · Tailwind · Framer Motion · JSON dosya DB

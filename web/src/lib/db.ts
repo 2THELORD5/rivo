@@ -698,14 +698,15 @@ export function getCollaboration(id: string) {
 
 function enrichOffer(db: DbShape, o: Offer) {
   const brand = db.brands.find((b) => b.id === o.brandId);
-  const brandUser = db.users.find((u) => u.id === brand?.userId);
   const inf = db.influencers.find((i) => i.id === o.influencerId);
   const infUser = db.users.find((u) => u.id === inf?.userId);
+  const collab = db.collaborations.find((c) => c.offerId === o.id);
   return {
     ...o,
     brandName: brand?.company ?? "",
     influencerName: infUser?.name ?? "",
     influencerHandle: inf?.handle ?? "",
+    collaborationId: collab?.id ?? null,
   };
 }
 
@@ -917,57 +918,108 @@ function userCanAccessCollab(userId: string, c: Collaboration) {
   return false;
 }
 
+function threadMessages(db: DbShape, threadId: string) {
+  const [kind, id] = threadId.split(":");
+  return db.messages.filter((m) => {
+    if (m.threadId === threadId) return true;
+    if (kind === "offer" && m.offerId === id) return true;
+    if (kind === "collab" && m.collaborationId === id) return true;
+    // also pull offer msgs into collab thread
+    if (kind === "collab") {
+      const c = db.collaborations.find((x) => x.id === id);
+      if (c && m.offerId === c.offerId) return true;
+    }
+    return false;
+  });
+}
+
+function unreadInThread(db: DbShape, userId: string, threadId: string) {
+  return threadMessages(db, threadId).filter(
+    (m) =>
+      !m.system &&
+      m.fromUserId !== userId &&
+      !(m.readBy ?? []).includes(userId),
+  ).length;
+}
+
 export function listThreadsForUser(userId: string) {
   const db = readDb();
   const offers = listOffersForUser(userId);
   const collabs = listCollaborationsForUser(userId);
+  const acceptedOfferIds = new Set(collabs.map((c) => c.offerId));
+
   const threads: {
     threadId: string;
     title: string;
     subtitle: string;
     href: string;
+    entityHref: string;
     lastMessage?: string;
     lastAt: string;
     kind: "offer" | "collab";
+    unread: number;
   }[] = [];
 
   for (const o of offers) {
+    if (acceptedOfferIds.has(o.id)) continue; // collab thread is canonical
     const threadId = `offer:${o.id}`;
-    const msgs = db.messages
-      .filter((m) => m.threadId === threadId || m.offerId === o.id)
-      .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
+    const msgs = threadMessages(db, threadId).sort(
+      (a, b) => +new Date(b.createdAt) - +new Date(a.createdAt),
+    );
     const last = msgs[0];
     threads.push({
       threadId,
       title: o.title,
       subtitle: `${o.brandName} ↔ @${o.influencerHandle}`,
       href: `/app/messages?thread=${encodeURIComponent(threadId)}`,
+      entityHref: `/app/offers/${o.id}`,
       lastMessage: last?.body,
       lastAt: last?.createdAt ?? o.updatedAt,
       kind: "offer",
+      unread: unreadInThread(db, userId, threadId),
     });
   }
 
   for (const c of collabs) {
     const threadId = `collab:${c.id}`;
-    const msgs = db.messages
-      .filter((m) => m.threadId === threadId || m.collaborationId === c.id)
-      .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
-    // skip if only offer thread covers same offer and no collab-specific msgs
+    const msgs = threadMessages(db, threadId).sort(
+      (a, b) => +new Date(b.createdAt) - +new Date(a.createdAt),
+    );
     const last = msgs[0];
     threads.push({
       threadId,
       title: c.title,
-      subtitle: `${c.brandName} · işbirliği`,
+      subtitle: `${c.brandName} · işbirliği · @${c.influencerHandle}`,
       href: `/app/messages?thread=${encodeURIComponent(threadId)}`,
+      entityHref: `/app/collaborations/${c.id}`,
       lastMessage: last?.body,
       lastAt: last?.createdAt ?? c.timeline.at(-1)?.at ?? new Date().toISOString(),
       kind: "collab",
+      unread: unreadInThread(db, userId, threadId),
     });
   }
 
   threads.sort((a, b) => +new Date(b.lastAt) - +new Date(a.lastAt));
   return threads;
+}
+
+export function unreadMessageCount(userId: string) {
+  return listThreadsForUser(userId).reduce((s, t) => s + t.unread, 0);
+}
+
+export function markThreadRead(userId: string, threadId: string) {
+  const db = readDb();
+  let changed = false;
+  for (const m of threadMessages(db, threadId)) {
+    if (m.system || m.fromUserId === userId) continue;
+    const readBy = m.readBy ?? [];
+    if (!readBy.includes(userId)) {
+      m.readBy = [...readBy, userId];
+      changed = true;
+    }
+  }
+  if (changed) writeDb(db);
+  return { ok: true };
 }
 
 export function listMessagesForThread(userId: string, threadId: string) {

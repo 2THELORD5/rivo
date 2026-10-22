@@ -8,6 +8,20 @@ import { useAuth } from "@/components/AuthProvider";
 import { Avatar, Badge, Button, Card, Input, PageHeader } from "@/components/ui";
 import { useToast } from "@/components/Toast";
 import { BRAND } from "@/lib/brand";
+import { tierLabel } from "@/lib/format";
+
+const roleLabel = {
+  brand: "Marka",
+  influencer: "Üretici",
+  agency: "Ajans",
+} as const;
+
+const providerLabel = {
+  email: "E-posta",
+  apple: "Apple",
+  google: "Google",
+  demo: "Demo",
+} as const;
 
 export default function SettingsPage() {
   const { user, refresh, logout } = useAuth();
@@ -42,14 +56,12 @@ export default function SettingsPage() {
             <p className="mt-4 text-lg font-semibold text-ink">{user.name}</p>
             <p className="text-sm text-muted">{user.email}</p>
             <div className="mt-3 flex flex-wrap justify-center gap-2">
-              <Badge tone="accent">{user.role}</Badge>
-              {user.authProvider ? (
-                <Badge tone="blue">{user.authProvider}</Badge>
-              ) : (
-                <Badge tone="neutral">demo</Badge>
-              )}
+              <Badge tone="accent">{roleLabel[user.role]}</Badge>
+              <Badge tone="blue">
+                {providerLabel[user.authProvider ?? "demo"]}
+              </Badge>
               {user.subscriptionTier ? (
-                <Badge tone="ink">{user.subscriptionTier}</Badge>
+                <Badge tone="ink">{tierLabel(user.subscriptionTier)}</Badge>
               ) : null}
             </div>
             {typeof user.tokens === "number" ? (

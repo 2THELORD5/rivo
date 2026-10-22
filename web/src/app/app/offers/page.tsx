@@ -1,21 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { MessageSquare, Pencil, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowUpRight, Handshake } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 import {
   Avatar,
   Badge,
-  Button,
+  ButtonLink,
   Card,
   EmptyState,
-  Input,
+  FilterChip,
   PageHeader,
-  Textarea,
 } from "@/components/ui";
-import { useToast } from "@/components/Toast";
-import { ChatPanel } from "@/components/ChatPanel";
 import { Stagger, StaggerItem } from "@/components/motion-ui";
 import { formatDate, formatTL, offerStatusLabel } from "@/lib/format";
 
@@ -24,18 +21,14 @@ type Offer = {
   title: string;
   budget: number;
   counterBudget?: number;
-  counterNote?: string | null;
-  brandNote?: string | null;
   status: "pending" | "countered" | "accepted" | "rejected" | "cancelled";
   brandName: string;
   influencerName: string;
   influencerHandle: string;
   contentType: string;
   dueDate: string;
-  usageRightsDays: number;
-  revisions: number;
   brief: string;
-  createdAt: string;
+  collaborationId?: string | null;
 };
 
 const tone = {
@@ -46,370 +39,161 @@ const tone = {
   cancelled: "neutral" as const,
 };
 
+type Filter = "all" | "open" | "done";
+
 export default function OffersPage() {
   const { user } = useAuth();
-  const { push } = useToast();
   const [offers, setOffers] = useState<Offer[]>([]);
   const [loading, setLoading] = useState(true);
-  const [chatId, setChatId] = useState<string | null>(null);
-  const [editId, setEditId] = useState<string | null>(null);
-  const [counterId, setCounterId] = useState<string | null>(null);
-  const [counterBudget, setCounterBudget] = useState(0);
-  const [counterNote, setCounterNote] = useState("");
-  const [editForm, setEditForm] = useState({
-    title: "",
-    budget: 0,
-    contentType: "",
-    dueDate: "",
-    usageRightsDays: 90,
-    revisions: 2,
-    brief: "",
-    brandNote: "",
-  });
-
-  async function load() {
-    const res = await fetch("/api/offers");
-    const data = await res.json();
-    setOffers(data.offers ?? []);
-    setLoading(false);
-  }
+  const [filter, setFilter] = useState<Filter>("all");
 
   useEffect(() => {
-    void load();
+    fetch("/api/offers")
+      .then((r) => r.json())
+      .then((d) => setOffers(d.offers ?? []))
+      .finally(() => setLoading(false));
   }, []);
 
-  async function respond(
-    id: string,
-    action: "accept" | "reject" | "counter" | "accept_counter",
-    extra?: { counterBudget?: number; counterNote?: string },
-  ) {
-    const res = await fetch(`/api/offers/${id}/respond`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action, ...extra }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      push(data.error || "İşlem başarısız", "err");
-      return;
-    }
-    push(
-      action === "accept" || action === "accept_counter"
-        ? "Teklif kabul · sözleşme oluşturuldu"
-        : action === "reject"
-          ? "Teklif reddedildi"
-          : "Karşı teklif gönderildi",
-    );
-    setCounterId(null);
-    await load();
-  }
+  const counts = useMemo(() => {
+    const open = offers.filter((o) =>
+      ["pending", "countered"].includes(o.status),
+    ).length;
+    const done = offers.filter((o) =>
+      ["accepted", "rejected", "cancelled"].includes(o.status),
+    ).length;
+    return { all: offers.length, open, done };
+  }, [offers]);
 
-  async function saveEdit(id: string) {
-    const res = await fetch(`/api/offers/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(editForm),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      push(data.error || "Güncellenemedi", "err");
-      return;
-    }
-    push("Teklif güncellendi");
-    setEditId(null);
-    await load();
-  }
-
-  async function cancel(id: string) {
-    const res = await fetch(`/api/offers/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "cancel" }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      push(data.error || "İptal edilemedi", "err");
-      return;
-    }
-    push("Teklif iptal edildi", "info");
-    await load();
-  }
+  const list = useMemo(() => {
+    if (filter === "open")
+      return offers.filter((o) => ["pending", "countered"].includes(o.status));
+    if (filter === "done")
+      return offers.filter((o) =>
+        ["accepted", "rejected", "cancelled"].includes(o.status),
+      );
+    return offers;
+  }, [offers, filter]);
 
   return (
     <div>
       <PageHeader
         kicker="Teklifler"
         title="Teklif kutusu"
-        subtitle="Düzenle, karşı teklif ver, sohbet et — kabul edilen teklif otomatik sözleşmeye dönüşür."
+        subtitle="Düzenle, müzakere et, kabul et — her teklifin detay ve sohbeti ayrı sayfada."
       />
+
+      <div className="mb-5 flex flex-wrap gap-1.5">
+        <FilterChip
+          active={filter === "all"}
+          onClick={() => setFilter("all")}
+          count={counts.all}
+        >
+          Tümü
+        </FilterChip>
+        <FilterChip
+          active={filter === "open"}
+          onClick={() => setFilter("open")}
+          count={counts.open}
+        >
+          Açık
+        </FilterChip>
+        <FilterChip
+          active={filter === "done"}
+          onClick={() => setFilter("done")}
+          count={counts.done}
+        >
+          Kapalı
+        </FilterChip>
+      </div>
 
       {loading ? (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="skeleton h-36" />
+            <div key={i} className="skeleton h-28" />
           ))}
         </div>
       ) : offers.length === 0 ? (
         <EmptyState
+          icon={Handshake}
           title="Henüz teklif yok"
-          body="Marka hesabından üretici profiline girerek ilk teklifi oluşturabilirsiniz."
+          body={
+            user?.role === "brand"
+              ? "Keşfet’ten üretici seçip ilk teklifini gönder."
+              : "Markalar sana teklif gönderdiğinde burada görünür."
+          }
+          action={
+            user?.role === "brand" ? (
+              <ButtonLink href="/app/discover">Üretici keşfet</ButtonLink>
+            ) : undefined
+          }
+        />
+      ) : list.length === 0 ? (
+        <EmptyState
+          icon={Handshake}
+          title="Bu filtrede teklif yok"
+          body="Filtreyi değiştirerek diğer teklifleri görebilirsin."
+          action={
+            <button
+              type="button"
+              className="text-sm font-semibold text-[#ff4d6d]"
+              onClick={() => setFilter("all")}
+            >
+              Tümünü göster
+            </button>
+          }
         />
       ) : (
         <Stagger className="space-y-3" fast>
-          {offers.map((o) => (
+          {list.map((o) => (
             <StaggerItem key={o.id}>
-              <Card>
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="flex items-start gap-3">
-                    <Avatar
-                      name={
-                        user?.role === "brand" ? o.influencerName : o.brandName
-                      }
-                      size={40}
-                    />
-                    <div>
-                      <p className="text-[15px] font-semibold text-ink">{o.title}</p>
-                      <p className="mt-0.5 text-xs text-muted">
-                        {o.brandName} → @{o.influencerHandle}
-                      </p>
+              <Link href={`/app/offers/${o.id}`}>
+                <Card interactive>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <Avatar
+                        name={
+                          user?.role === "brand"
+                            ? o.influencerName
+                            : o.brandName
+                        }
+                        size={42}
+                      />
+                      <div>
+                        <p className="text-[15px] font-semibold text-ink">
+                          {o.title}
+                        </p>
+                        <p className="mt-0.5 text-xs text-muted">
+                          {o.brandName} → @{o.influencerHandle}
+                        </p>
+                      </div>
                     </div>
+                    <Badge tone={tone[o.status]}>
+                      {offerStatusLabel(o.status)}
+                    </Badge>
                   </div>
-                  <Badge tone={tone[o.status]}>{offerStatusLabel(o.status)}</Badge>
-                </div>
-
-                <div className="mt-4 grid grid-cols-2 gap-3 rounded-lg bg-wash px-3 py-3 text-sm sm:grid-cols-4">
-                  <div>
-                    <p className="text-[11px] text-muted">Bütçe</p>
-                    <p className="font-semibold text-ink">{formatTL(o.budget)}</p>
-                  </div>
-                  <div>
-                    <p className="text-[11px] text-muted">İçerik</p>
-                    <p className="font-semibold text-ink">{o.contentType}</p>
-                  </div>
-                  <div>
-                    <p className="text-[11px] text-muted">Teslim</p>
-                    <p className="font-semibold text-ink">{formatDate(o.dueDate)}</p>
-                  </div>
-                  <div>
-                    <p className="text-[11px] text-muted">Revizyon</p>
-                    <p className="font-semibold text-ink">{o.revisions}</p>
-                  </div>
-                </div>
-
-                <p className="mt-3 text-sm leading-relaxed text-slate">{o.brief}</p>
-                {o.brandNote ? (
-                  <p className="mt-2 text-xs text-muted">Not: {o.brandNote}</p>
-                ) : null}
-
-                {o.status === "countered" && o.counterBudget ? (
-                  <div className="mt-3 rounded-xl border border-blue-200 bg-blue-wash px-3 py-2 text-sm">
-                    <span className="font-semibold text-ink">
-                      Karşı teklif: {formatTL(o.counterBudget)}
+                  <p className="mt-3 line-clamp-2 text-sm text-slate">{o.brief}</p>
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
+                    <div className="flex flex-wrap gap-4 text-sm">
+                      <span>
+                        <span className="text-muted">Bütçe </span>
+                        <span className="font-semibold text-ink tabular">
+                          {formatTL(o.budget)}
+                        </span>
+                      </span>
+                      <span>
+                        <span className="text-muted">Teslim </span>
+                        <span className="font-semibold text-ink">
+                          {formatDate(o.dueDate)}
+                        </span>
+                      </span>
+                      <span className="text-muted">{o.contentType}</span>
+                    </div>
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#ff4d6d]">
+                      Detay <ArrowUpRight size={13} />
                     </span>
-                    {o.counterNote ? (
-                      <p className="mt-1 text-xs text-muted">{o.counterNote}</p>
-                    ) : null}
                   </div>
-                ) : null}
-
-                {editId === o.id ? (
-                  <div className="mt-4 space-y-3 rounded-xl border border-line bg-wash p-4">
-                    <Input
-                      label="Başlık"
-                      value={editForm.title}
-                      onChange={(e) =>
-                        setEditForm({ ...editForm, title: e.target.value })
-                      }
-                    />
-                    <div className="grid grid-cols-2 gap-3">
-                      <Input
-                        label="Bütçe"
-                        type="number"
-                        value={editForm.budget}
-                        onChange={(e) =>
-                          setEditForm({
-                            ...editForm,
-                            budget: Number(e.target.value),
-                          })
-                        }
-                      />
-                      <Input
-                        label="Teslim"
-                        type="date"
-                        value={editForm.dueDate}
-                        onChange={(e) =>
-                          setEditForm({ ...editForm, dueDate: e.target.value })
-                        }
-                      />
-                    </div>
-                    <Input
-                      label="İçerik türü"
-                      value={editForm.contentType}
-                      onChange={(e) =>
-                        setEditForm({ ...editForm, contentType: e.target.value })
-                      }
-                    />
-                    <Textarea
-                      label="Brief"
-                      rows={3}
-                      value={editForm.brief}
-                      onChange={(e) =>
-                        setEditForm({ ...editForm, brief: e.target.value })
-                      }
-                    />
-                    <div className="flex gap-2">
-                      <Button size="sm" onClick={() => void saveEdit(o.id)}>
-                        Kaydet
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setEditId(null)}
-                      >
-                        Vazgeç
-                      </Button>
-                    </div>
-                  </div>
-                ) : null}
-
-                {counterId === o.id ? (
-                  <div className="mt-4 space-y-3 rounded-xl border border-line bg-wash p-4">
-                    <Input
-                      label="Karşı bütçe (TL)"
-                      type="number"
-                      value={counterBudget}
-                      onChange={(e) => setCounterBudget(Number(e.target.value))}
-                    />
-                    <Textarea
-                      label="Açıklama"
-                      rows={2}
-                      value={counterNote}
-                      onChange={(e) => setCounterNote(e.target.value)}
-                      placeholder="Neden bu tutar?"
-                    />
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        onClick={() =>
-                          void respond(o.id, "counter", {
-                            counterBudget,
-                            counterNote,
-                          })
-                        }
-                      >
-                        Karşı teklifi gönder
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setCounterId(null)}
-                      >
-                        Vazgeç
-                      </Button>
-                    </div>
-                  </div>
-                ) : null}
-
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() =>
-                      setChatId(chatId === o.id ? null : o.id)
-                    }
-                  >
-                    <MessageSquare size={14} /> Sohbet
-                  </Button>
-                  <Link href={`/app/messages?thread=${encodeURIComponent(`offer:${o.id}`)}`}>
-                    <Button size="sm" variant="ghost">
-                      Mesajlarda aç
-                    </Button>
-                  </Link>
-
-                  {user?.role === "influencer" && o.status === "pending" ? (
-                    <>
-                      <Button size="sm" onClick={() => void respond(o.id, "accept")}>
-                        Kabul et
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setCounterId(o.id);
-                          setCounterBudget(Math.round(o.budget * 1.15));
-                          setCounterNote("");
-                        }}
-                      >
-                        Karşı teklif
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => void respond(o.id, "reject")}
-                      >
-                        Reddet
-                      </Button>
-                    </>
-                  ) : null}
-
-                  {user?.role === "brand" && o.status === "countered" ? (
-                    <Button
-                      size="sm"
-                      onClick={() => void respond(o.id, "accept_counter")}
-                    >
-                      Karşı teklifi kabul et
-                    </Button>
-                  ) : null}
-
-                  {user?.role === "brand" &&
-                  (o.status === "pending" || o.status === "countered") ? (
-                    <>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setEditId(o.id);
-                          setEditForm({
-                            title: o.title,
-                            budget: o.budget,
-                            contentType: o.contentType,
-                            dueDate: o.dueDate.slice(0, 10),
-                            usageRightsDays: o.usageRightsDays,
-                            revisions: o.revisions,
-                            brief: o.brief,
-                            brandNote: o.brandNote ?? "",
-                          });
-                        }}
-                      >
-                        <Pencil size={14} /> Düzenle
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="danger"
-                        onClick={() => void cancel(o.id)}
-                      >
-                        <X size={14} /> İptal
-                      </Button>
-                    </>
-                  ) : null}
-
-                  {user?.role === "agency" && o.status === "pending" ? (
-                    <Button size="sm" onClick={() => void respond(o.id, "accept")}>
-                      Ajans adına kabul et
-                    </Button>
-                  ) : null}
-                </div>
-
-                {chatId === o.id ? (
-                  <div className="mt-4">
-                    <ChatPanel
-                      threadId={`offer:${o.id}`}
-                      title={`${o.title} · sohbet`}
-                      compact
-                    />
-                  </div>
-                ) : null}
-              </Card>
+                </Card>
+              </Link>
             </StaggerItem>
           ))}
         </Stagger>
