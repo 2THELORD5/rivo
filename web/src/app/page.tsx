@@ -7,7 +7,6 @@ import { ArrowRight, Play } from "lucide-react";
 import { Button, Logo } from "@/components/ui";
 import { MagneticButton, Reveal } from "@/components/motion-ui";
 import { BRAND } from "@/lib/brand";
-import { easeOut } from "@/lib/motion";
 
 const reel = [
   "Brief → teklif → sözleşme",
@@ -28,7 +27,7 @@ export default function HomePage() {
     target: heroRef,
     offset: ["start start", "end start"],
   });
-  const heroScale = useTransform(scrollYProgress, [0, 1], [1, 0.96]);
+  const heroScale = useTransform(scrollYProgress, [0, 1], [1, 0.98]);
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
@@ -76,48 +75,27 @@ export default function HomePage() {
           </div>
         </header>
 
+        {/* Critical hero copy is plain HTML so it never stays invisible if JS/motion stalls */}
         <motion.div
           style={{ scale: heroScale }}
           className="relative z-10 mx-auto flex min-h-[calc(100svh-72px)] max-w-6xl flex-col justify-center px-5 pb-[max(5rem,env(safe-area-inset-bottom))] md:px-8 md:pb-20"
         >
-          <motion.p
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-sm font-semibold tracking-wide"
-            style={{ color: "rgba(255,255,255,0.72)" }}
-          >
+          <p className="text-sm font-semibold tracking-wide text-white/70">
             Marka × üretici işbirliği
-          </motion.p>
-          <motion.h1
-            initial={{ opacity: 0, y: 28 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.65, ease: easeOut }}
-            className="font-display mt-3 text-[clamp(3.4rem,16vw,8rem)] leading-[0.88] font-extrabold tracking-tight"
+          </p>
+          <h1
+            className="font-display mt-3 text-[clamp(3.4rem,16vw,8rem)] leading-[0.88] font-extrabold tracking-tight text-white"
             style={{
-              color: "#ffffff",
-              WebkitTextFillColor: "#ffffff",
-              opacity: 1,
               textShadow:
                 "0 2px 0 rgba(255,255,255,0.12), 0 12px 48px rgba(255,77,109,0.55), 0 0 80px rgba(124,92,255,0.35)",
             }}
           >
             {BRAND.name}
-          </motion.h1>
-          <motion.p
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 }}
-            className="mt-6 max-w-md text-lg leading-relaxed"
-            style={{ color: "rgba(255,255,255,0.82)" }}
-          >
+          </h1>
+          <p className="mt-6 max-w-md text-lg leading-relaxed text-white/80">
             Brief’ten teslime tek akış — canlı, hızlı, şeffaf.
-          </motion.p>
-          <motion.div
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.28 }}
-            className="mt-9 flex flex-wrap gap-3"
-          >
+          </p>
+          <div className="mt-9 flex flex-wrap gap-3">
             <MagneticButton>
               <Link href="/login?role=brand">
                 <Button size="lg" className="btn-gradient">
@@ -136,10 +114,9 @@ export default function HomePage() {
                 </Button>
               </Link>
             </MagneticButton>
-          </motion.div>
+          </div>
         </motion.div>
 
-        {/* Infinite reel */}
         <div className="relative z-10 border-t border-white/10 bg-black/20 py-3 backdrop-blur">
           <motion.div
             className="flex gap-8 whitespace-nowrap"
