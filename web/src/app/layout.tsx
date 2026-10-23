@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Manrope, Syne } from "next/font/google";
 import { AuthProvider } from "@/components/AuthProvider";
 import { ToastProvider } from "@/components/Toast";
@@ -20,7 +20,35 @@ const body = Manrope({
 export const metadata: Metadata = {
   title: `${BRAND.name} — ${BRAND.tagline}`,
   description: BRAND.description,
-  icons: { icon: "/rivo-mark.jpg" },
+  applicationName: BRAND.name,
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: BRAND.name,
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  icons: {
+    icon: [
+      { url: "/rivo-mark.svg", type: "image/svg+xml" },
+      { url: "/rivo-mark.jpg", sizes: "512x512", type: "image/jpeg" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
+    shortcut: "/rivo-mark.jpg",
+  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f7f6fb" },
+    { media: "(prefers-color-scheme: dark)", color: "#12081f" },
+  ],
+  colorScheme: "light",
 };
 
 export default function RootLayout({

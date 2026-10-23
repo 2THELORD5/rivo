@@ -170,11 +170,12 @@ export function Card({
   padding?: "none" | "sm" | "md" | "lg";
   interactive?: boolean;
 }) {
-  const pads = { none: "", sm: "p-4", md: "p-5", lg: "p-6" };
+  const pads = { none: "", sm: "p-3.5 sm:p-4", md: "p-4 sm:p-5", lg: "p-5 sm:p-6" };
   const Comp = interactive ? motion.div : "div";
   const motionProps = interactive
     ? {
-        whileHover: { y: -3 },
+        whileHover: { y: -2 },
+        whileTap: { scale: 0.992 },
         transition: springSnappy,
       }
     : {};
@@ -210,24 +211,26 @@ export function PageHeader({
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-      className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
+      className="mb-5 flex flex-col gap-3 sm:mb-8 sm:flex-row sm:items-end sm:justify-between sm:gap-4"
     >
       <div className="min-w-0">
         {kicker ? (
-          <p className="mb-2 text-[11px] font-semibold tracking-[0.16em] text-muted uppercase">
+          <p className="mb-1.5 text-[10px] font-semibold tracking-[0.14em] text-muted uppercase sm:mb-2 sm:text-[11px] sm:tracking-[0.16em]">
             {kicker}
           </p>
         ) : null}
-        <h1 className="font-display text-[2rem] leading-[1.1] text-ink md:text-[2.35rem]">
+        <h1 className="font-display text-[1.75rem] leading-[1.08] tracking-tight text-ink sm:text-[2rem] md:text-[2.35rem]">
           {title}
         </h1>
         {subtitle ? (
-          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted md:text-[15px]">
+          <p className="mt-1.5 max-w-2xl text-[13px] leading-relaxed text-muted sm:mt-2 sm:text-sm md:text-[15px]">
             {subtitle}
           </p>
         ) : null}
       </div>
-      {action ? <div className="shrink-0">{action}</div> : null}
+      {action ? (
+        <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">{action}</div>
+      ) : null}
     </motion.div>
   );
 }
@@ -307,7 +310,7 @@ export function FilterChip({
       type="button"
       onClick={onClick}
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-semibold transition",
+        "inline-flex min-h-9 items-center gap-1.5 rounded-full px-3.5 py-2 text-[12px] font-semibold transition active:scale-[0.98] sm:min-h-0 sm:py-1.5",
         active
           ? "bg-ink text-white"
           : "border border-line bg-paper text-slate hover:border-ink/20 hover:text-ink",
@@ -382,13 +385,13 @@ export function Logo({
   return (
     <span className={cn("inline-flex items-center gap-2.5", className)}>
       <motion.img
-        src="/rivo-mark.jpg"
+        src="/rivo-mark.svg"
         alt="Rivo"
         width={34}
         height={34}
         whileHover={{ rotate: -6, scale: 1.05 }}
         transition={springSnappy}
-        className="h-[34px] w-[34px] rounded-[10px] object-cover ring-1 ring-black/5"
+        className="h-[34px] w-[34px] rounded-[10px] object-cover shadow-[0_2px_8px_rgba(255,77,109,0.25)] ring-1 ring-black/5"
       />
       {!markOnly ? (
         <span

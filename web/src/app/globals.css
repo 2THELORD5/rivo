@@ -86,11 +86,90 @@ html {
 body {
   margin: 0;
   min-height: 100%;
+  min-height: 100dvh;
   color: var(--foreground);
   background: var(--wash);
   font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
   font-feature-settings: "ss01" on, "cv11" on, "tnum" on;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  overscroll-behavior-y: none;
+}
+
+/* iOS / mobile chrome */
+.ios-topbar {
+  background: color-mix(in srgb, var(--wash) 78%, transparent);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+}
+
+.ios-tabbar {
+  border-top: 0.5px solid rgba(60, 60, 67, 0.18);
+  background: color-mix(in srgb, var(--paper) 82%, transparent);
+  -webkit-backdrop-filter: saturate(180%) blur(22px);
+  backdrop-filter: saturate(180%) blur(22px);
+  box-shadow: 0 -8px 28px rgba(17, 17, 20, 0.06);
+}
+
+.ios-tab {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  min-width: 0;
+  padding: 0.2rem 0.15rem 0.15rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.ios-toolbar-btn {
+  display: inline-flex;
+  height: 2.5rem;
+  width: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 0.5px solid rgba(60, 60, 67, 0.12);
+  background: color-mix(in srgb, var(--paper) 88%, transparent);
+  color: var(--slate);
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+.ios-toolbar-btn:active {
+  transform: scale(0.94);
+  background: var(--wash-2);
+  color: var(--ink);
+}
+
+.ios-icon-well {
+  display: inline-flex;
+  height: 1.75rem;
+  width: 1.75rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--wash-2);
+  color: var(--ink);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ios-toolbar-btn:hover {
+    color: var(--ink);
+    background: var(--paper);
+  }
+}
+
+@supports (padding: max(0px)) {
+  .safe-pb {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
 }
 
 .font-display {
@@ -207,6 +286,19 @@ select {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   box-shadow: var(--shadow-xs);
+}
+
+@media (max-width: 640px) {
+  .surface {
+    border-radius: 14px;
+  }
+
+  /* Prevent iOS Safari zoom-on-focus */
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
 }
 
 .gradient-text {

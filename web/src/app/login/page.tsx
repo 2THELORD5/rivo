@@ -122,11 +122,11 @@ function LoginForm() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-wash">
+    <div className="relative min-h-[100dvh] overflow-hidden bg-wash">
       <div className="orb-a pointer-events-none absolute -top-20 -right-10 h-64 w-64 rounded-full bg-[#ff4d6d]/25 blur-3xl" />
       <div className="orb-b pointer-events-none absolute bottom-0 -left-10 h-72 w-72 rounded-full bg-[#7c5cff]/25 blur-3xl" />
 
-      <div className="relative z-10 mx-auto grid min-h-screen max-w-5xl items-center gap-10 px-5 py-10 lg:grid-cols-2">
+      <div className="relative z-10 mx-auto grid min-h-[100dvh] max-w-5xl items-center gap-8 px-5 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))] lg:grid-cols-2 lg:gap-10 lg:py-10">
         <motion.div
           initial={{ opacity: 0, x: -16 }}
           animate={{ opacity: 1, x: 0 }}
@@ -135,10 +135,12 @@ function LoginForm() {
           <Link href="/">
             <Logo />
           </Link>
-          <h1 className="font-display mt-8 text-4xl text-ink md:text-5xl">
+          <h1 className="font-display mt-6 text-[2rem] leading-tight text-ink sm:mt-8 sm:text-4xl md:text-5xl">
             {BRAND.name}’ya hoş geldin
           </h1>
-          <p className="mt-3 max-w-sm text-muted">{BRAND.description}</p>
+          <p className="mt-2 max-w-sm text-sm text-muted sm:mt-3 sm:text-base">
+            {BRAND.description}
+          </p>
         </motion.div>
 
         <motion.div

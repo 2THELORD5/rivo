@@ -57,7 +57,7 @@ export default function HomePage() {
           style={{ left: sx, top: sy, x: "-50%", y: "-50%" }}
         />
 
-        <header className="relative z-20 mx-auto flex max-w-6xl items-center justify-between px-5 py-5 md:px-8">
+        <header className="relative z-20 mx-auto flex max-w-6xl items-center justify-between px-5 pt-[max(1.1rem,env(safe-area-inset-top))] pb-4 md:px-8 md:py-5">
           <Logo invert />
           <div className="flex items-center gap-2">
             <Link
@@ -78,7 +78,7 @@ export default function HomePage() {
 
         <motion.div
           style={{ scale: heroScale }}
-          className="relative z-10 mx-auto flex min-h-[calc(100svh-72px)] max-w-6xl flex-col justify-center px-5 pb-20 md:px-8"
+          className="relative z-10 mx-auto flex min-h-[calc(100svh-72px)] max-w-6xl flex-col justify-center px-5 pb-[max(5rem,env(safe-area-inset-bottom))] md:px-8 md:pb-20"
         >
           <motion.p
             initial={{ opacity: 0, y: 12 }}
@@ -92,7 +92,7 @@ export default function HomePage() {
             initial={{ opacity: 0, y: 28 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.65, ease: easeOut }}
-            className="font-display mt-3 text-[clamp(4.5rem,14vw,8rem)] leading-[0.88] font-extrabold tracking-tight"
+            className="font-display mt-3 text-[clamp(3.4rem,16vw,8rem)] leading-[0.88] font-extrabold tracking-tight"
             style={{
               color: "#ffffff",
               WebkitTextFillColor: "#ffffff",
